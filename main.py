@@ -3,19 +3,31 @@ from http import HTTPStatus
 from transformers import VisionEncoderDecoderModel,TrOCRProcessor
 from ultralytics import YOLO
 from ultralytics.utils.plotting import Annotator, colors
-import os
 from dotenv import load_dotenv
+import os
 import cv2
 import re
+import pandas as pd
+import oss2
+import base64
+import random
 
 load_dotenv()
 app = Flask(__name__)
 app.config['MODEL_OBJECT_DETECTION']='./model/detect_plat.pt'
-# app.config['RESULT_CROPED']='./crop'
-app.config['ALLOWED_EXTENSIONS'] = set(['png','jpg','jpeg'])
 app.config['MODEL_OCR'] = os.getenv('MODEL_OCR')
+app.config['UPLOAD_IMAGES_OBJECT_DETECTION'] = './image/object-detect/images/'
+app.config['UPLOAD_IMAGES_OCR'] = './image/OCR/images/'
+
+app.config['BUCKET_KEY_ID'] = os.getenv('BUCKET_KEY_ID')
+app.config['BUCKET_KEY_SECRET'] = os.getenv('BUCKET_KEY_SECRET')
+app.config['ENPOINT_BUCKET'] = os.getenv('ENPOINT_BUCKET')
+app.config['BUCKET_NAME'] = os.getenv('BUCKET_NAME')
 model_detect = YOLO(app.config['MODEL_OBJECT_DETECTION'])
 detect_names = model_detect.names
+
+auth = oss2.Auth(app.config['BUCKET_KEY_ID'], app.config['BUCKET_KEY_SECRET'])
+bucket = oss2.Bucket(auth, app.config['ENPOINT_BUCKET'], app.config['BUCKET_NAME'] )
 
 processor_ocr = TrOCRProcessor.from_pretrained("microsoft/trocr-base-str")
 model_ocr = VisionEncoderDecoderModel.from_pretrained(app.config['MODEL_OCR'])
@@ -73,6 +85,23 @@ maps = {
     "Maluku dan Papua": maluku_papua_map
 }
 
+def upload_file_to_bucket(local_file_path, oss_file_name):
+    result = bucket.put_object_from_file(oss_file_name, local_file_path)
+    if result.status == 200:
+        return jsonify({
+                        'status': {
+                            'code': HTTPStatus.OK,
+                            'message': 'Success uploading',
+                        }
+                    }),HTTPStatus.OK,
+    else:
+        return jsonify({
+                        'status': {
+                            'code': HTTPStatus.BAD_REQUEST,
+                            'message': 'Invalid uploading',
+                        }
+                        }),HTTPStatus.BAD_REQUEST,
+
 def find_area(plate_area):
     for region, city in maps.items():
         if plate_area in city:
@@ -99,13 +128,10 @@ def vehicle_classification(angka):
     else:
         return "Tidak diketahui"
 
-def allowed_file(filename):
-    return '.' in filename and \
-        filename.rsplit('.',1)[1] in app.config['ALLOWED_EXTENSIONS']
 
 def crop(image_path):
     
-    # original_filename, ext = os.path.splitext(os.path.basename(image_path))
+    original_filename, ext = os.path.splitext(os.path.basename(image_path))
 
     im0 = cv2.imread(image_path)
     if im0 is None:
@@ -117,17 +143,17 @@ def crop(image_path):
     annotator = Annotator(im0, line_width=2, example=detect_names)
 
     idx = 0
-#   cropped_files = []
+    cropped_files = []
     if boxes is not None:
         for box, cls in zip(boxes, clss):
             idx += 1
             class_name = detect_names[int(cls)] 
             annotator.box_label(box, color=colors(int(cls), True), label=class_name)
             crop_obj = im0[int(box[1]): int(box[3]), int(box[0]): int(box[2])]
-            #   crop_filename = os.path.join(app.config['RESULT_CROPED'], f"{original_filename}{idx}{ext}")
-            #   cv2.imwrite(crop_filename, crop_obj)
-            #   cropped_files.append(crop_filename)
-    return crop_obj
+            crop_filename = os.path.join(app.config['UPLOAD_IMAGES_OCR'], f"{original_filename}{idx}{ext}")
+            cv2.imwrite(crop_filename, crop_obj)
+            cropped_files.append(crop_filename)
+    return crop_obj,crop_filename
 
 
 def ocr(image):
@@ -136,6 +162,8 @@ def ocr(image):
     generated_ids = model_ocr.generate(pixel_values)
     generated_text = processor_ocr.batch_decode(generated_ids, skip_special_tokens=True)[0]
     return generated_text
+
+
 
 @app.route("/")
 def index():
@@ -150,19 +178,37 @@ def index():
 @app.route("/prediction",methods=["POST"]) 
 def predict():
     if request.method == 'POST':
-        reqImage = request.files['image']
-        if reqImage and allowed_file(reqImage.filename):
-            crop_image = crop(reqImage)
+        reqImage =  request.get_json()
+        image_data = reqImage.get('image')
+        if image_data:
+            image_data = base64.b64decode(image_data)
+            file_name= str(random.randint(10000,99999))+"image_object-detect.png"
+            file_path = app.config['UPLOAD_IMAGES_OBJECT_DETECTION']+file_name
+            with open(file_path, 'wb') as f:
+                f.write(image_data)
+            
+            crop_image,crop_filename = crop(file_path)
             plate = ocr(crop_image)
             area,type,temp = regex_plat(plate)
             region,city_province = find_area(area)
             vehicle_type = vehicle_classification(type)
+            
             result = {
                 'plat' : plate,
                 'wilayah' : region,
                 'kota/provinsi' : city_province,
                 'jenis_kendaraan' : vehicle_type
             }
+            oss_file_path_OD = "object-detect/images/{file_name}"
+            
+            ocr_filename =os.path.basename(crop_filename)
+            oss_file_path_OCR = "OCR/images/"+ocr_filename   
+            
+            upload_file_to_bucket(file_path, oss_file_path_OD)
+            upload_file_to_bucket(crop_filename, oss_file_path_OCR)
+            
+            os.remove(file_path)
+            os.remove(crop_filename)
             return jsonify({
                             'status': {
                                 'code': HTTPStatus.OK,
@@ -175,7 +221,7 @@ def predict():
             return jsonify({
                             'status': {
                                 'code': HTTPStatus.BAD_REQUEST,
-                                'message': 'Invalid file format. Please upload a JPG, PNG, or JPEG image',
+                                'message': 'Invalid file format',
                             }
                             }),HTTPStatus.BAD_REQUEST,
                 
@@ -187,7 +233,18 @@ def predict():
                         }
                         }),HTTPStatus.METHOD_NOT_ALLOWED,
 
-
+@app.route("/DataRecap/",methods=["POST"]) 
+def DataRecap():
+    data = request.get_json()
+    name_file = data.get('name')+'.xlsx'
+    df = pd.DataFrame(data.get('data'))
+    
+    oss_file_path = "excel/{name_file}"
+    excel_file_path = 'Excel-folder/{name_file}'
+    df.to_excel(excel_file_path, index=False)
+    upload_file_to_bucket(excel_file_path, oss_file_path)
+    os.remove(excel_file_path)
+    
 if __name__ == '__main__': 
     app.run(
         host='0.0.0.0', port='5000', debug=True
