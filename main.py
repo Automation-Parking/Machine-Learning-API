@@ -1,33 +1,34 @@
 from flask import Flask, jsonify, request
+from flask_cors import CORS
 from http import HTTPStatus
 from transformers import VisionEncoderDecoderModel,TrOCRProcessor
 from ultralytics import YOLO
 from ultralytics.utils.plotting import Annotator, colors
 from dotenv import load_dotenv
+from google.cloud import storage
 import os
 import cv2
 import re
 import pandas as pd
-import oss2
+import numpy as np
 import base64
 import random
 
 load_dotenv()
 app = Flask(__name__)
+CORS(app)
 app.config['MODEL_OBJECT_DETECTION']='./model/detect_plat.pt'
 app.config['MODEL_OCR'] = os.getenv('MODEL_OCR')
 app.config['UPLOAD_IMAGES_OBJECT_DETECTION'] = './image/object-detect/images/'
 app.config['UPLOAD_IMAGES_OCR'] = './image/OCR/images/'
+app.config['GCS_CREDENTIALS'] = './credentials/gcs.json'
 
-app.config['BUCKET_KEY_ID'] = os.getenv('BUCKET_KEY_ID')
-app.config['BUCKET_KEY_SECRET'] = os.getenv('BUCKET_KEY_SECRET')
-app.config['ENPOINT_BUCKET'] = os.getenv('ENPOINT_BUCKET')
-app.config['BUCKET_NAME'] = os.getenv('BUCKET_NAME')
+bucket_name = os.getenv('BUCKET_NAME_AP','bucket-automation-parking')
+client = storage.Client.from_service_account_json(json_credentials_path=app.config['GCS_CREDENTIALS'])
+bucket = storage.Bucket(client,bucket_name)
+
 model_detect = YOLO(app.config['MODEL_OBJECT_DETECTION'])
 detect_names = model_detect.names
-
-auth = oss2.Auth(app.config['BUCKET_KEY_ID'], app.config['BUCKET_KEY_SECRET'])
-bucket = oss2.Bucket(auth, app.config['ENPOINT_BUCKET'], app.config['BUCKET_NAME'] )
 
 processor_ocr = TrOCRProcessor.from_pretrained("microsoft/trocr-base-str")
 model_ocr = VisionEncoderDecoderModel.from_pretrained(app.config['MODEL_OCR'])
@@ -85,22 +86,6 @@ maps = {
     "Maluku dan Papua": maluku_papua_map
 }
 
-def upload_file_to_bucket(local_file_path, oss_file_name):
-    result = bucket.put_object_from_file(oss_file_name, local_file_path)
-    if result.status == 200:
-        return jsonify({
-                        'status': {
-                            'code': HTTPStatus.OK,
-                            'message': 'Success uploading',
-                        }
-                    }),HTTPStatus.OK,
-    else:
-        return jsonify({
-                        'status': {
-                            'code': HTTPStatus.BAD_REQUEST,
-                            'message': 'Invalid uploading',
-                        }
-                        }),HTTPStatus.BAD_REQUEST,
 
 def find_area(plate_area):
     for region, city in maps.items():
@@ -144,7 +129,8 @@ def crop(image_path):
 
     idx = 0
     cropped_files = []
-    if boxes is not None:
+    print(boxes)
+    if boxes != []:
         for box, cls in zip(boxes, clss):
             idx += 1
             class_name = detect_names[int(cls)] 
@@ -153,7 +139,9 @@ def crop(image_path):
             crop_filename = os.path.join(app.config['UPLOAD_IMAGES_OCR'], f"{original_filename}{idx}{ext}")
             cv2.imwrite(crop_filename, crop_obj)
             cropped_files.append(crop_filename)
-    return crop_obj,crop_filename
+        return crop_obj,crop_filename
+    else:
+        return None,None
 
 
 def ocr(image):
@@ -181,42 +169,67 @@ def predict():
         reqImage =  request.get_json()
         image_data = reqImage.get('image')
         if image_data:
-            image_data = base64.b64decode(image_data)
+            if "data:image" in image_data:
+                image_data = image_data.split(",")[1]
+            img_bytes = base64.b64decode(image_data)
+            np_img = np.frombuffer(img_bytes, np.uint8)
+            img = cv2.imdecode(np_img, cv2.IMREAD_COLOR)
             file_name= str(random.randint(10000,99999))+"image_object-detect.png"
             file_path = app.config['UPLOAD_IMAGES_OBJECT_DETECTION']+file_name
-            with open(file_path, 'wb') as f:
-                f.write(image_data)
+            cv2.imwrite(file_path, img)
+            
+            file_path_OD = f"object-detect/{file_name}"
+            blob_OD = bucket.blob(file_path_OD)
+            blob_OD.upload_from_filename(file_path)
             
             crop_image,crop_filename = crop(file_path)
-            plate = ocr(crop_image)
-            area,type,temp = regex_plat(plate)
-            region,city_province = find_area(area)
-            vehicle_type = vehicle_classification(type)
-            
-            result = {
-                'plat' : plate,
-                'wilayah' : region,
-                'kota/provinsi' : city_province,
-                'jenis_kendaraan' : vehicle_type
-            }
-            oss_file_path_OD = "object-detect/images/{file_name}"
-            
-            ocr_filename =os.path.basename(crop_filename)
-            oss_file_path_OCR = "OCR/images/"+ocr_filename   
-            
-            upload_file_to_bucket(file_path, oss_file_path_OD)
-            upload_file_to_bucket(crop_filename, oss_file_path_OCR)
-            
-            os.remove(file_path)
-            os.remove(crop_filename)
-            return jsonify({
-                            'status': {
-                                'code': HTTPStatus.OK,
-                                'message': 'Success predicting',
-                            },
-                            'data': result
-                        }),HTTPStatus.OK,
+            if crop_image is not None and crop_filename is not None :
+                plate = ocr(crop_image)
+                area,type,temp = regex_plat(plate)
+                region,city_province = find_area(area)
+                vehicle_type = vehicle_classification(type)
                 
+                ocr_filename =os.path.basename(crop_filename)
+                file_path_OCR = "OCR/"+ocr_filename   
+                
+                
+                
+                blob_OCR = bucket.blob(file_path_OCR)
+                blob_OCR.upload_from_filename(crop_filename)
+                
+                os.remove(file_path)
+                os.remove(crop_filename)
+                
+                result = {
+                    'platNomor' : plate,
+                    'wilayah' : region,
+                    'kota_provinsi' : city_province,
+                    'jenis_kendaraan' : vehicle_type,
+                    'image_link' : 'https://storage.googleapis.com/'+'bucket-automation-parking/OCR/'+ ocr_filename
+                }
+                return jsonify({
+                                'status': {
+                                    'code': HTTPStatus.OK,
+                                    'message': 'Success predicting',
+                                },
+                                'data': result
+                            }),HTTPStatus.OK,
+            else :
+                os.remove(file_path)
+                result = {
+                        'platNomor' : None,
+                        'wilayah' : None,
+                        'kota_provinsi' : None,
+                        'jenis_kendaraan' : None,
+                        'image_link' : 'https://storage.googleapis.com/'+'bucket-automation-parking/object-detect/'+ file_name
+                        }
+                return jsonify({
+                            "status" : {
+                                "code" : HTTPStatus.OK,
+                                "message" : "NO detect",
+                            },
+                            "data" : result
+                        }),HTTPStatus.OK
         else:
             return jsonify({
                             'status': {
@@ -233,17 +246,28 @@ def predict():
                         }
                         }),HTTPStatus.METHOD_NOT_ALLOWED,
 
-@app.route("/DataRecap/",methods=["POST"]) 
+@app.route("/datarecap",methods=["POST"]) 
 def DataRecap():
     data = request.get_json()
-    name_file = data.get('name')+'.xlsx'
+    name_file = data.get('filename')+'.xlsx'
     df = pd.DataFrame(data.get('data'))
     
-    oss_file_path = "excel/{name_file}"
-    excel_file_path = 'Excel-folder/{name_file}'
+    file_path = f"excel/{name_file}"
+    excel_file_path = f'Excel-folder/{name_file}'
     df.to_excel(excel_file_path, index=False)
-    upload_file_to_bucket(excel_file_path, oss_file_path)
+    blob_excel = bucket.blob(file_path)
+    blob_excel.upload_from_filename(excel_file_path)
     os.remove(excel_file_path)
+    result = {
+            'file_link' : 'https://storage.googleapis.com/'+'bucket-automation-parking/'+ file_path
+                }
+    return jsonify({
+                    'status': {
+                        'code': HTTPStatus.OK,
+                        'message': 'Success predicting',
+                    },
+                    'data': result
+                    }),HTTPStatus.OK,
     
 if __name__ == '__main__': 
     app.run(

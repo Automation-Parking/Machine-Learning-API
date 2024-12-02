@@ -1,1 +1,0 @@
-upload image untuk OCR
