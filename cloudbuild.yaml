@@ -1,0 +1,28 @@
+steps:
+  - name: gcr.io/cloud-builders/docker
+    args:
+      - "build"
+      - "-t"
+      - "asia-southeast2-docker.pkg.dev/$PROJECT_ID/parking-artifact/parking-image:$COMMIT_SHA"
+      - "."
+  - name: gcr.io/cloud-builders/docker
+    args:
+      - "push"
+      - "asia-southeast2-docker.pkg.dev/$PROJECT_ID/parking-artifact/parking-image:$COMMIT_SHA"
+  - name: "gcr.io/cloud-builders/gcloud"
+    entrypoint: gcloud
+    args:
+      - "run"
+      - "deploy"
+      - "braincore-parking-v1"
+      - "--image=asia-southeast2-docker.pkg.dev/$PROJECT_ID/parking-artifact/parking-image:$COMMIT_SHA"
+      - "--region=asia-southeast2"
+      - "--cpu=1"
+      - "--memory=2048Mi"
+      - "--allow-unauthenticated"
+      - "--set-secrets=BUCKET_NAME_AP=bucket-name-ap:latest"
+      - "--set-secrets=CREDENTIALS=bucket-key-ap:latest"
+      - "--set-secrets=MODEL_OCR=model-ocr:latest"
+      - "--port=8080"
+images:
+  - "asia-southeast2-docker.pkg.dev/$PROJECT_ID/parking-artifact/parking-image:$COMMIT_SHA"
