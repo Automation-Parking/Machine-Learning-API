@@ -7,9 +7,11 @@ RUN apt-get update && apt-get install -y \
     libsm6 \
     libxext6 \
     libxrender-dev \
+    libopencv-dev \
+    python3-opencv \
     && rm -rf /var/lib/apt/lists/*
 COPY . ./
 RUN pip install --upgrade pip
 RUN pip install -r requirements.txt
 EXPOSE 8080
-CMD ["python", "main.py", "--host=0.0.0.0", "--port=8080"]
+CMD ["python", "main.py"]

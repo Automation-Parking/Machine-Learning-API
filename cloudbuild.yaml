@@ -24,7 +24,7 @@ steps:
       - "--set-secrets=CREDENTIALS=bucket-key-ap:latest"
       - "--set-secrets=MODEL_OCR=model-ocr:latest"
       - "--port=8080"
-      - "--timeout=300"
+      - "--timeout=600"
 images:
   - "asia-southeast2-docker.pkg.dev/$PROJECT_ID/parking-artifact/parking-image:$COMMIT_SHA"
 logsBucket: "gs://capstonecicd-bucket/logs"
