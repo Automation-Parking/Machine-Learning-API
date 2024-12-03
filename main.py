@@ -6,6 +6,7 @@ from ultralytics import YOLO
 from ultralytics.utils.plotting import Annotator, colors
 from dotenv import load_dotenv
 from google.cloud import storage
+from google.oauth2 import service_account
 import os
 import cv2
 import re
