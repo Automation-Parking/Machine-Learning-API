@@ -18,12 +18,12 @@ load_dotenv()
 app = Flask(__name__)
 CORS(app)
 app.config['MODEL_OBJECT_DETECTION']='./model/detect_plat.pt'
-app.config['MODEL_OCR'] = os.getenv('MODEL_OCR')
+app.config['MODEL_OCR'] = os.environ.get('MODEL_OCR')
 app.config['UPLOAD_IMAGES_OBJECT_DETECTION'] = './image/object-detect/images/'
 app.config['UPLOAD_IMAGES_OCR'] = './image/OCR/images/'
 
-bucket_name = os.getenv('BUCKET_NAME_AP','bucket-automation-parking')
-credentials_json = os.getenv('CREDENTIALS')
+bucket_name = os.environ.get('BUCKET_NAME_AP','bucket-automation-parking')
+credentials_json = os.environ.get('CREDENTIALS')
 
 credentials_dict = json.loads(credentials_json)
 credentials = service_account.Credentials.from_service_account_info(credentials_dict)
