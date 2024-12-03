@@ -21,10 +21,14 @@ app.config['MODEL_OBJECT_DETECTION']='./model/detect_plat.pt'
 app.config['MODEL_OCR'] = os.getenv('MODEL_OCR')
 app.config['UPLOAD_IMAGES_OBJECT_DETECTION'] = './image/object-detect/images/'
 app.config['UPLOAD_IMAGES_OCR'] = './image/OCR/images/'
-app.config['GCS_CREDENTIALS'] = './credentials/gcs.json'
 
 bucket_name = os.getenv('BUCKET_NAME_AP','bucket-automation-parking')
-client = storage.Client.from_service_account_json(json_credentials_path=app.config['GCS_CREDENTIALS'])
+credentials_json = os.getenv('CREDENTIALS')
+
+credentials_dict = json.loads(credentials_json)
+credentials = service_account.Credentials.from_service_account_info(credentials_dict)
+client = storage.Client(credentials=credentials)
+
 bucket = storage.Bucket(client,bucket_name)
 
 model_detect = YOLO(app.config['MODEL_OBJECT_DETECTION'])
@@ -270,6 +274,5 @@ def DataRecap():
                     }),HTTPStatus.OK,
     
 if __name__ == '__main__': 
-    app.run(
-        host='0.0.0.0', port='5000', debug=True
-    )
+    port = int(os.getenv('PORT', 8080))
+    app.run(host ='0.0.0.0', port=port, debug=True)
