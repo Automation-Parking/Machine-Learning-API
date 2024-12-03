@@ -28,6 +28,10 @@ idna==3.10
 itsdangerous==2.2.0
 Jinja2==3.1.4
 jmespath==0.10.0
+json5==0.9.25
+jsonpointer==2.4
+jsonschema==4.22.0
+jsonschema-specifications==2023.12.1
 kiwisolver==1.4.7
 MarkupSafe==3.0.1
 matplotlib==3.9.2
@@ -50,6 +54,7 @@ pycryptodome==3.21.0
 pyparsing==3.1.4
 python-dateutil==2.9.0.post0
 python-dotenv==1.0.1
+python-json-logger==2.0.7
 pytz==2024.2
 PyYAML==6.0.2
 regex==2024.9.11
