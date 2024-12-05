@@ -9,7 +9,7 @@ RUN apt-get update && apt-get install -y \
     libxrender-dev \
     libopencv-dev \
     opencv-python \
-    && rm -rf /var/lib/apt/lists/*
+    && dpkg -l
 COPY . ./
 RUN pip install --upgrade pip
 RUN pip install -r requirements.txt
