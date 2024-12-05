@@ -1,4 +1,4 @@
-FROM python:3.11-slim
+FROM python:3.11.4
 ENV PYTHONBUFFERED True
 ENV APP_HOME /app
 WORKDIR $APP_HOME
