@@ -8,7 +8,7 @@ RUN apt-get update && apt-get install -y \
     libxext6 \
     libxrender-dev \
     libopencv-dev \
-    python-opencv \
+    opencv-python \
     && rm -rf /var/lib/apt/lists/*
 COPY . ./
 RUN pip install --upgrade pip
