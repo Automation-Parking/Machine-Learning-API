@@ -15,6 +15,7 @@ import numpy as np
 import base64
 import random
 import json
+import logging
 
 load_dotenv()
 app = Flask(__name__)
@@ -129,6 +130,7 @@ def crop(image_path):
         raise ValueError(f"Error reading image file {image_path}")
 
     results = model_detect.predict(im0, show=False)
+    logging.info(f"Prediksi OD: {results}")
     boxes = results[0].boxes.xyxy.cpu().tolist()
     clss = results[0].boxes.cls.cpu().tolist()
     annotator = Annotator(im0, line_width=2, example=detect_names)
@@ -155,6 +157,7 @@ def ocr(image):
     pixel_values = processor_ocr(image, return_tensors='pt').pixel_values
     generated_ids = model_ocr.generate(pixel_values)
     generated_text = processor_ocr.batch_decode(generated_ids, skip_special_tokens=True)[0]
+    logging.info(f"prediksi OCR : {generated_text}")
     return generated_text
 
 
@@ -174,6 +177,7 @@ def predict():
     if request.method == 'POST':
         reqImage =  request.get_json()
         image_data = reqImage.get('image')
+        logging.info(f"data masuk : {reqImage}")
         if image_data:
             if "data:image" in image_data:
                 image_data = image_data.split(",")[1]
