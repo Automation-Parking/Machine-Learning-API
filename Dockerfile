@@ -14,7 +14,7 @@ COPY . ./
 RUN mkdir -p image_uploads/object-detect/images/ image_uploads/OCR/images/
 RUN python -c "import os; print(os.listdir('image_uploads/object-detect/'))"
 RUN python -c "import os; print(os.listdir('image_uploads/OCR/'))"
-RUN python -c "import os; print(os.listdir('model/detect_plat.pt'))"
+RUN python -c "import os; print(os.listdir('model/'))"
 RUN pip install --upgrade pip
 RUN pip install -r requirements.txt
 EXPOSE 8080
