@@ -207,8 +207,8 @@ def predict():
                 blob_OCR = bucket.blob(file_path_OCR)
                 blob_OCR.upload_from_filename(crop_filename)
                 
-                os.remove(file_path)
-                os.remove(crop_filename)
+                # os.remove(file_path)
+                # os.remove(crop_filename)
                 
                 result = {
                     'platNomor' : plate,
@@ -225,7 +225,7 @@ def predict():
                                 'data': result
                             }),HTTPStatus.OK,
             else :
-                os.remove(file_path)
+                # os.remove(file_path)
                 result = {
                         'platNomor' : None,
                         'wilayah' : None,
