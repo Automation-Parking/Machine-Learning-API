@@ -20,10 +20,10 @@ import logging
 load_dotenv()
 app = Flask(__name__)
 CORS(app)
-app.config['MODEL_OBJECT_DETECTION']='./model/detect_plat.pt'
+app.config['MODEL_OBJECT_DETECTION']='model/detect_plat.pt'
 app.config['MODEL_OCR'] = os.environ.get('MODEL_OCR')
-app.config['UPLOAD_IMAGES_OBJECT_DETECTION'] = './image/object-detect/images/'
-app.config['UPLOAD_IMAGES_OCR'] = './image/OCR/images/'
+app.config['UPLOAD_IMAGES_OBJECT_DETECTION'] = 'image_uploads/object-detect/images/'
+app.config['UPLOAD_IMAGES_OCR'] = 'image_uploads/OCR/images/'
 
 bucket_name = os.environ.get('BUCKET_NAME_AP','bucket-automation-parking')
 credentials_json = os.environ.get('CREDENTIALS')
