@@ -187,11 +187,18 @@ def predict():
             file_name= str(random.randint(10000,99999))+"image_object-detect.png"
             file_path = app.config['UPLOAD_IMAGES_OBJECT_DETECTION']+file_name
             cv2.imwrite(file_path, img)
-            
-            file_path_OD = f"object-detect/{file_name}"
-            blob_OD = bucket.blob(file_path_OD)
-            blob_OD.upload_from_filename(file_path)
-            
+            if os.path.exists(file_path):
+                file_path_OD = f"object-detect/{file_name}"
+                blob_OD = bucket.blob(file_path_OD)
+                blob_OD.upload_from_filename(file_path)
+            else :
+                list_path = os.listdir(app.config['UPLOAD_IMAGES_OBJECT_DETECTION'])
+                return jsonify({
+                                'status': {
+                                    'code': HTTPStatus.OK,
+                                    'message': 'file not found',
+                                },
+                                'data': list_path})
             crop_image,crop_filename = crop(file_path)
             if crop_image is not None and crop_filename is not None :
                 plate = ocr(crop_image)
