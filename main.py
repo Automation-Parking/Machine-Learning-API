@@ -251,7 +251,6 @@ def DataRecap():
     data = request.get_json()
     name_file = data.get('filename')+'.xlsx'
     df = pd.DataFrame(data.get('data'))
-    
     file_path = f"excel/{name_file}"
     excel_file_path = f'Excel-folder/{name_file}'
     df.to_excel(excel_file_path, index=False)
@@ -264,7 +263,7 @@ def DataRecap():
     return jsonify({
                     'status': {
                         'code': HTTPStatus.OK,
-                        'message': 'Success predicting',
+                        'message': 'Success Export',
                     },
                     'data': result
                     }),HTTPStatus.OK,
