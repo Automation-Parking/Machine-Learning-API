@@ -13,6 +13,7 @@ import pandas as pd
 import numpy as np
 import base64
 import random
+import json
 
 load_dotenv()
 app = Flask(__name__)
@@ -249,8 +250,9 @@ def predict():
 @app.route("/datarecap",methods=["POST"]) 
 def DataRecap():
     data = request.get_json()
+    data_file= json.loads(data.get('data'))
     name_file = data.get('filename')+'.xlsx'
-    df = pd.DataFrame(data.get('data'))
+    df = pd.DataFrame(data_file)
     file_path = f"excel/{name_file}"
     excel_file_path = f'Excel-folder/{name_file}'
     df.to_excel(excel_file_path, index=False)
