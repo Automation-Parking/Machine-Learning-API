@@ -16,6 +16,6 @@ RUN python -c "import os; print(os.listdir('image_uploads/object-detect/'))"
 RUN python -c "import os; print(os.listdir('image_uploads/OCR/'))"
 RUN python -c "import os; print(os.listdir('model/'))"
 RUN pip install --upgrade pip
-RUN pip install -r requirements.txt --no-cache-dir
+RUN pip install --no-cache-dir -r requirements.txt
 EXPOSE 8080
 CMD ["python", "main.py"]
