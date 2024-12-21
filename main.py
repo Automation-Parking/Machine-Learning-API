@@ -281,7 +281,7 @@ def DataRecap():
     return jsonify({
                     'status': {
                         'code': HTTPStatus.OK,
-                        'message': 'Success predicting',
+                        'message': 'Success Export',
                     },
                     'data': result
                     }),HTTPStatus.OK,
